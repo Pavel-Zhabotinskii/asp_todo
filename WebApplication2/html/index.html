@@ -1,0 +1,205 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>TodoList</title>
+    <style>
+        td {
+            padding: 5px;
+        }
+
+        button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Список задач</h2>
+    <div>
+        <input type="hidden" id="taskId" />
+        <p>
+            Задача:<br />
+            <input id="taskBody" />
+        </p>
+        <p>
+            <button id="saveBtn">Сохранить</button>
+            <button id="resetBtn">Сбросить</button>
+        </p>
+    </div>
+    <table>
+        <thead><tr><th>Задача</th><th>Время создания</th><th>Индикатор</th><th></th></tr></thead>
+        <tbody>
+        </tbody>
+    </table>
+
+    <script>// Получение всех задач
+        async function getTasks() {
+            // отправляет запрос и получаем ответ
+            const response = await fetch("/api/tasks", {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+            // если запрос прошел нормально
+            if (response.ok === true) {
+                // получаем данные
+                const tasks = await response.json();
+                const rows = document.querySelector("tbody");
+                // добавляем полученные элементы в таблицу
+                tasks.forEach(task => rows.append(row(task)));
+            }
+        }
+        // Получение одной задачи
+        async function getTask(id) {
+            const response = await fetch(`/api/tasks/${id}`, {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+            if (response.ok === true) {
+                const task = await response.json();
+                document.getElementById("taskId").value = task.id;
+                document.getElementById("taskBody").value = task.text;
+            }
+            else {
+                // если произошла ошибка, получаем сообщение об ошибке
+                const error = await response.json();
+                console.log(error.message); // и выводим его на консоль
+            }
+        }
+        // Добавление задачи
+        async function createTask(taskBody){
+
+            const response = await fetch("api/tasks", {
+                method: "POST",
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    text: taskBody
+                })
+            });
+            if (response.ok === true) {
+                const task = await response.json();
+                document.querySelector("tbody").append(row(task));
+            }
+            else {
+                const error = await response.json();
+                console.log(error.message);
+            }
+        }
+        // Изменение задачи
+        async function editTask(taskId, taskBody, taskIsDone) {
+            if (taskIsDone) {
+                const response = await fetch("api/tasks", {
+                    method: "PUT",
+                    headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: taskId,
+                        text: taskBody
+                    })
+                });
+                if (response.ok === true) {
+                    const task = await response.json();
+                    document.querySelector(`tr[data-rowid='${task.id}']`).replaceWith(row(task));
+                }
+                else {
+                    const error = await response.json();
+                    console.log(error.message);
+                }
+            }
+            const response = await fetch("api/tasks", {
+                method: "PUT",
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: taskId,
+                    text: taskBody,
+                    isDone: taskIsDone
+                })
+            });
+            if (response.ok === true) {
+                const task = await response.json();
+                document.querySelector(`tr[data-rowid='${task.id}']`).replaceWith(row(task));
+            }
+            else {
+                const error = await response.json();
+                console.log(error.message);
+            }
+        }
+        // Удаление задачи
+        async function deleteTask(id) {
+            const response = await fetch(`/api/tasks/${id}`, {
+                method: "DELETE",
+                headers: { "Accept": "application/json" }
+            });
+            if (response.ok === true) {
+                const task = await response.json();
+                document.querySelector(`tr[data-rowid='${task.id}']`).remove();
+            }
+            else {
+                const error = await response.json();
+                console.log(error.message);
+            }
+        }
+
+        // сброс данных формы после отправки
+        function reset() {
+            document.getElementById("taskId").value = ''
+            document.getElementById("taskBody").value = ''
+        }
+
+        // создание строки для таблицы
+        function row(task) {
+
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-rowid", task.id);
+
+            const nameTd = document.createElement("td");
+            nameTd.append(task.text);
+            tr.append(nameTd);
+
+            const dateTd = document.createElement("td");
+            dateTd.append(task.date);
+            tr.append(dateTd);
+
+            const checkTd = document.createElement("td");
+            const inputCheck = document.createElement("input");
+            if (task.isDone) inputCheck.checked = true;
+            inputCheck.type = "checkbox";
+            inputCheck.setAttribute("data-check", task.id);
+            inputCheck.addEventListener("click", async () => await editTask(task.id, task.text, !task.isDone))
+            checkTd.append(inputCheck)
+            tr.append(checkTd)
+
+            const linksTd = document.createElement("td");
+
+            const editLink = document.createElement("button");
+            editLink.append("Изменить");
+            editLink.addEventListener("click", async () => await getTask(task.id));
+            linksTd.append(editLink);
+
+            const removeLink = document.createElement("button");
+            removeLink.append("Удалить");
+            removeLink.addEventListener("click", async () => await deleteTask(task.id));
+
+            linksTd.append(removeLink);
+            tr.appendChild(linksTd);
+
+            return tr;
+        }
+        // сброс значений формы
+        document.getElementById("resetBtn").addEventListener("click", () =>  reset());
+
+        // отправка формы
+        document.getElementById("saveBtn").addEventListener("click", async () => {
+
+            const id = document.getElementById("taskId").value;
+            const name = document.getElementById("taskBody").value;
+            if (id === "")
+                await createTask(name)
+            else
+                await editTask(id, name);
+            reset();
+        });
+
+          // загрузка задач
+        getTasks();
+    </script>
+</body>
+</html>
